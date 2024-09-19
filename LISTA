@@ -1,0 +1,98 @@
+##################################################################### 
+# Autor: Ney Calazans (convertido para RISC-V)
+# 
+#	O objetivo deste programa é criar uma lista encadeada
+#	com conteúdos aleatoriamente distribuídos, retirados de um
+#	vetor linear (Vetor) com uma determinada quantidade de 
+#	elementos (Size), que definirá o tamanho inicial da lista.
+#
+        .text   
+        .globl	main            
+##################################################################### 
+# Programa principal - chama criação de lista e tentativa(s) de
+# remoção de elementos desta
+#####################################################################
+main:	
+    la      s0, 0x10040000   # inicializa s0 - apontador de heap
+
+# Processo de geração da lista encadeada
+	la	t0, Vetor	    # Carrega endereço do vetor em t0
+	la	t1, Size        # Carrega o tamanho do vetor
+	lw	t1, 0(t1)	    # t1 tem o tamanho do vetor
+	addi	sp, sp, -16    # aloca espaço na pilha para três dados
+	sw	ra, 0(sp)      # Endereço de retorno no topo da pilha
+	sw	t0, 4(sp)	    # Ponteiro para o vetor abaixo do topo
+	sw	t1, 8(sp)	    # Tamanho duas posições abaixo do topo
+
+	jal	gera_lista	    # gera lista encadeada no heap
+
+	lw	ra, 0(sp)	    # recupera endereço de retorno
+	addi	sp, sp, 16	    # desaloca espaço na pilha
+	la	t5, cabeça	    # gera ponteiro para cabeça da lista
+	sw	a0, 0(t5) 	    # salva ponteiro para cabeça da lista
+
+	li	a7, 10         # syscall para terminar o programa
+	ecall
+
+##################################################################### 
+# Rotina geradora da lista encadeada no heap
+# Na entrada a pilha possui 
+#	topo: ra de retorno (no topo)
+#	topo+1: ponteiro para o vetor linear a partir do qual 
+#		será criada a lista encadeada, usando escolhas 
+#		aleatórias de posições do vetor
+#	topo+2: tamanho do vetor linear
+# Na saída, a rotina retorna em a0 o endereço da cabeça da lista
+#	encadeada criada aqui
+##################################################################### 
+gera_lista:
+	lw	t0, 4(sp)		# Busca para t0 ponteiro para vetor linear 
+	lw	t1, 8(sp)		# Busca para t1 tamanho do vetor
+	li	t2, 0		    # Gera valor de ponteiro nulo em t2 (0)
+	addi	a0, zero, 117	# Produz semente (117) de gerador de números
+	li	a7, 42         # Código de syscall para gerar número aleatório
+	ecall				# Define a semente de geração (117)
+
+l_gera:	
+    beq	t1, zero, end_gera	# Se tratou todos os elementos, fim da geração
+
+# Processo de geração de novo conteúdo aleatório de elemento para a lista encadeada
+	lw	a1, 8(sp)		# Busca para a1 o tamanho do vetor
+	addi	a1, a1, -1		# Decrementa para gerar limite superior
+	li	a7, 42         # Código de syscall para geração aleatória limitada
+	ecall				# Gera novo índice em a0
+	sll	a0, a0, 2		# Multiplica índice por 4
+	add	a0, a0, t0		# Produz em a0 endereço de novo elemento
+	lw	t3, 0(a0)		# Pega campo de dados do novo elemento
+
+# Inserção na lista encadeada do novo elemento
+	li	t4, 0		    # Gera ponteiro nulo (0) em t4
+	beq	t2, zero, prim	# Se primeiro da lista, trata diferente
+	sw	s0, -4(s0)		# Gera ponteiro para novo elemento e
+				            # atualiza link do elemento prévio
+
+cont:	
+    addi	s0, s0, 8		# Aloca novo elemento no heap
+	sw	t3, -8(s0)		# Preenche campo de dados do novo elemento
+	sw	t4, -4(s0)		# Preenche campo de link do novo elemento
+	addi	t1, t1, -1		# Decrementa contador
+	j	l_gera			# Repete laço
+
+# O primeiro elemento da lista precisa ter seu endereço guardado para o retorno
+prim:	
+    mv	a1, s0		    # Guarda ponteiro para cabeça da lista em a1
+	li	t2, 1		    # Temporariamente (para retornar)
+	j	cont			# Volta a processar
+
+end_gera:	
+    mv	a0, a1		    # Recupera endereço da cabeça da lista
+	ret		            # Retorna para a função chamadora
+
+##################################################################### 
+# Dados
+##################################################################### 
+	.data
+Vetor:	.word	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+Size:	.word	20
+cabeça:	.word	0
+
